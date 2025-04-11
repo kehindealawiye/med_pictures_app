@@ -1,6 +1,6 @@
 import streamlit as st
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.enum.section import WD_ORIENT
 from PIL import Image
@@ -76,7 +76,7 @@ if generate_button and project_title and contractor_name and image_files:
             p = doc.add_paragraph()
             p.paragraph_format.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
             run = p.add_run(full_title)
-            run.font.color.rgb = docx.shared.RGBColor(255, 0, 0)
+            run.font.color.rgb = RGBColor(255, 0, 0)
             run.font.size = Pt(16)
             run.bold = True
             run = p.add_run(subtitle)
