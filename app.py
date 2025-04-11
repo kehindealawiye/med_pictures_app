@@ -6,6 +6,10 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 import streamlit as st
 from PIL import Image
 
+# Set page configuration
+st.set_page_config(page_title="MED Pictures Generator", layout="wide")
+st.title("📸 MED PICTURES Word Document Generator")
+
 # Function to create a Word document
 def create_word_doc(project_title, contractor_name, image_files, image_width, layout, orientation, margin_control):
     doc = Document()
@@ -29,7 +33,7 @@ def create_word_doc(project_title, contractor_name, image_files, image_width, la
     title_run = title.add_run("MED PICTURES: " + project_title + " by " + contractor_name)
     title_run.font.bold = True
     title_run.font.size = Pt(16)
-    title_run.font.color.rgb = RGBColor(255, 0, 0)
+    title_run.font.color.rgb = RGBColor(255, 0, 0)  # Red color
     title.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
     # Add current date and time
@@ -70,9 +74,6 @@ def create_word_doc(project_title, contractor_name, image_files, image_width, la
     return save_name
 
 # Streamlit interface for user input
-st.title('Generate MED PICTURES Word Document')
-
-# Project title and contractor name
 project_title = st.text_input('Enter Project Title')
 contractor_name = st.text_input('Enter Contractor Name')
 
