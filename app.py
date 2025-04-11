@@ -1,61 +1,87 @@
 import streamlit as st
 from docx import Document
-from docx.shared import Inches, RGBColor
-from io import BytesIO
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.oxml.ns import qn
+from PIL import Image
+import io
+from datetime import datetime
+import os
 
-st.title("MED PICTURES: Document Generator")
+st.set_page_config(layout="centered")
+st.title("📸 MED PICTURES DOCUMENT GENERATOR")
 
-project_title = st.text_input("Project Title")
-contractor_name = st.text_input("Contractor Name")
+# --- Sidebar Inputs ---
+st.sidebar.header("📌 Settings")
+project_title = st.sidebar.text_input("Project Title")
+contractor_name = st.sidebar.text_input("Contractor Name")
+layout_option = st.sidebar.selectbox("Select Layout", ["2 x 2", "3 x 2", "3 x 3"])
+orientation = st.sidebar.radio("Page Orientation", ["Portrait", "Landscape"])
+image_width_inches = st.sidebar.slider("Image Width (inches)", 2.0, 5.0, 3.0)
 
-image_files = st.file_uploader("Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_images = st.file_uploader("Upload Project Images", accept_multiple_files=True, type=["png", "jpg", "jpeg"])
 
-image_size = st.slider("Select Image Width (in inches)", min_value=1, max_value=4, value=3)
-layout_option = st.radio("Select Layout", ("2x2", "3x2", "4x2"))
+if st.button("Generate Document") and uploaded_images:
+    cols = int(layout_option.split(" x ")[0])
+    rows = int(layout_option.split(" x ")[1])
+    max_per_page = cols * rows
+    img_width = Inches(image_width_inches)
 
-if st.button("Generate Document"):
-    if project_title and contractor_name and image_files:
-        doc = Document()
-        
-        # Title: red, bold, left-aligned
-        paragraph = doc.add_paragraph()
-        run = paragraph.add_run(f"MED PICTURES: {project_title} by {contractor_name}")
-        run.bold = True
-        run.font.color.rgb = RGBColor(255, 0, 0)
-        paragraph.alignment = 0
-        
-        # Layout settings
-        if layout_option == "2x2":
-            rows, cols = 2, 2
-        elif layout_option == "3x2":
-            rows, cols = 3, 2
-        else:
-            rows, cols = 4, 2
+    # Document setup
+    doc = Document()
+    if orientation == "Landscape":
+        section = doc.sections[-1]
+        section.orientation = 1  # Landscape
+        new_width, new_height = section.page_height, section.page_width
+        section.page_width, section.page_height = new_width, new_height
 
-        image_index = 0
-        total_images = len(image_files)
+    # Title setup
+    def add_title():
+        title_para = doc.add_paragraph()
+        run1 = title_para.add_run("MED PICTURES: ")
+        run1.font.color.rgb = RGBColor(255, 0, 0)
+        run1.bold = True
+        run1.font.size = Pt(16)
 
-        while image_index < total_images:
-            table = doc.add_table(rows=rows, cols=cols)
-            for r in range(rows):
-                for c in range(cols):
-                    if image_index < total_images:
-                        file = image_files[image_index]
-                        file.seek(0)  # Rewind the file
-                        image_stream = BytesIO(file.read())
-                        cell = table.cell(r, c)
-                        cell.paragraphs[0].add_run().add_picture(image_stream, width=Inches(image_size))
-                        image_index += 1
-                    else:
-                        table.cell(r, c).text = ""
-            doc.add_paragraph()  # space after table
+        run2 = title_para.add_run(f"{project_title} by {contractor_name}")
+        run2.font.color.rgb = RGBColor(0, 0, 0)
+        run2.font.size = Pt(16)
+        title_para.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
+        # Add datetime
+        dt_para = doc.add_paragraph(datetime.now().strftime("%d-%b-%Y %I:%M %p"))
+        dt_para.runs[0].font.size = Pt(10)
 
-        filename = f"MED_PICTURES_{project_title} by {contractor_name}.docx"
-        st.success(f"Document created: {filename}")
-        st.download_button("Download Word Document", data=buffer, file_name=filename, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-    else:
-        st.warning("Please fill in all fields and upload at least one image.")
+    add_title()
+
+    # Add images in grid
+    for i, image_file in enumerate(uploaded_images):
+        if i % max_per_page == 0 and i != 0:
+            doc.add_page_break()
+            add_title()
+
+        if i % cols == 0:
+            table = doc.add_table(rows=1, cols=cols)
+            table.autofit = True
+            row_cells = table.rows[0].cells
+
+        img = Image.open(image_file)
+        img_io = io.BytesIO()
+        img.save(img_io, format='PNG')
+        img_io.seek(0)
+
+        # Auto-scale height
+        aspect_ratio = img.height / img.width
+        height = Inches(image_width_inches * aspect_ratio)
+
+        row_cells[i % cols].paragraphs[0].add_run().add_picture(img_io, width=img_width, height=height)
+
+    # Save document
+    safe_title = f"{project_title}".replace('/', '_').replace(':', '-')
+    safe_contractor = f"{contractor_name}".replace('/', '_').replace(':', '-')
+    filename = f"MED_PICTURES_{safe_title} by {safe_contractor}.docx"
+    filepath = os.path.join("/mnt/data", filename)
+    doc.save(filepath)
+
+    st.success("✅ Document generated successfully!")
+    st.download_button("📥 Download Word Document", data=open(filepath, "rb"), file_name=filename)
