@@ -1,116 +1,112 @@
-import os
-import datetime
-from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 import streamlit as st
+import docx
+from docx.shared import Inches, RGBColor
+from io import BytesIO
+from datetime import datetime
+import os
 from PIL import Image
+import math
 
-# Set page configuration
+# Page title and layout settings
 st.set_page_config(page_title="MED Pictures Generator", layout="wide")
 st.title("📸 MED PICTURES Word Document Generator")
 
-# Function to create a Word document
-def create_word_doc(project_title, contractor_name, image_files, image_width, layout, orientation, margin_control):
-    doc = Document()
+# Collect user inputs
+project_title = st.text_input("Project Title")
+contractor_name = st.text_input("Contractor Name")
+orientation = st.selectbox("Select Page Orientation", ["Portrait", "Landscape"])
+num_pictures = st.number_input("Number of Pictures", min_value=1, max_value=12, step=1)
+layout = st.selectbox("Select Layout", ["1x1", "2x2", "3x2", "3x3"])
+image_width = st.selectbox("Select Image Width (inches)", [1, 2, 3, 4, 5])
+margin_control = st.checkbox("Enable Margin Control")
+
+# Upload pictures
+uploaded_pics = []
+for i in range(num_pictures):
+    uploaded_pics.append(st.file_uploader(f"Upload Picture {i+1}", type=["jpg", "png", "jpeg"], key=f"pic_{i+1}"))
+
+# Define the document generation function
+def create_document():
+    doc = docx.Document()
+    section = doc.sections[0]
 
     # Set page orientation
     if orientation == 'Landscape':
-        section = doc.sections[0]
         section.orientation = 1  # Landscape
         section.page_width, section.page_height = section.page_height, section.page_width
 
-    # Set margins
-    section = doc.sections[0]
+    # Set margins if margin_control is checked
     if margin_control:
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
         section.top_margin = Inches(1)
         section.bottom_margin = Inches(1)
 
-    # Title section
+    # Title with different color for "MED PICTURES"
     title = doc.add_paragraph()
-    title_run = title.add_run("MED PICTURES: " + project_title + " by " + contractor_name)
-    title_run.font.bold = True
-    title_run.font.size = Pt(16)
-    title_run.font.color.rgb = RGBColor(255, 0, 0)  # Red color
-    title.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+    title.alignment = docx.enum.text.WD_ALIGN_PARAGRAPH.LEFT
+    run = title.add_run(f"MED PICTURES: {project_title} by {contractor_name}")
+    run.font.size = docx.shared.Pt(14)
+    run.font.color.rgb = RGBColor(255, 0, 0)  # Red color for "MED PICTURES"
+    title.add_run(f" {contractor_name}")
+    title.paragraph_format.space_after = Inches(0.3)
 
-    # Add current date and time
-    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    doc.add_paragraph("Date: " + current_time, style='Normal')
+    # Add the date and time
+    date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    doc.add_paragraph(f"Generated on: {date_time}")
 
-    # Add images based on the layout choice
-    num_images = len(image_files)
-    rows = layout[0]
-    cols = layout[1]
-    image_height = Inches(2.5)  # default height
-    image_width = Inches(image_width)
+    # Add pictures
+    pictures = []
+    for file in uploaded_pics:
+        if file:
+            picture = Image.open(file)
+            pictures.append(picture)
 
-    # Add image placeholders based on selected layout
-    table = doc.add_table(rows=rows, cols=cols)
-    table.autofit = True
+    # Image layout and resizing
+    layout_map = {
+        "1x1": (1, 1),
+        "2x2": (2, 2),
+        "3x2": (3, 2),
+        "3x3": (3, 3),
+    }
 
-    index = 0
-    for row in range(rows):
-        for col in range(cols):
-            if index < num_images:
-                cell = table.cell(row, col)
-                img = Image.open(image_files[index])
-                img.thumbnail((image_width, image_height))
-                img_path = f"temp_image_{index}.png"
-                img.save(img_path)
-                cell.paragraphs[0].clear()
-                cell.paragraphs[0].add_run().add_picture(img_path, width=image_width, height=image_height)
-                os.remove(img_path)  # Clean up the temporary image file
-                index += 1
-            else:
-                # Leave the cell empty if there are fewer images
-                cell.text = ""
+    rows, cols = layout_map.get(layout, (1, 1))
+    images_per_row = cols
+    image_height = Inches(2)  # Fixed image height
 
-    # Save the document with the correct file name
-    save_name = f"MED_PICTURES_{project_title} by {contractor_name}.docx"
-    doc.save(save_name)
-    return save_name
+    # Create the picture grid
+    for i in range(0, len(pictures), images_per_row):
+        row_pictures = pictures[i:i+images_per_row]
+        row = doc.add_paragraph()
+        for pic in row_pictures:
+            pic_path = BytesIO()
+            pic = pic.resize((int(image_width * 100), int(image_height * 100)))  # Resize image
+            pic.save(pic_path, format="PNG")
+            pic_path.seek(0)
 
-# Streamlit interface for user input
-project_title = st.text_input('Enter Project Title')
-contractor_name = st.text_input('Enter Contractor Name')
+            run = row.add_run()
+            run.add_picture(pic_path, width=Inches(image_width), height=image_height)
+            run.add_run("\t")  # Add some space between images
+        row.alignment = docx.enum.text.WD_ALIGN_PARAGRAPH.LEFT
 
-# Image file input
-image_files = st.file_uploader('Upload Images', type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
+    # Ensure the header appears on each page
+    header = doc.sections[0].header
+    paragraph = header.paragraphs[0]
+    paragraph.text = f"MED PICTURES: {project_title} by {contractor_name}"
 
-# Image width options
-image_width = st.slider('Select Image Width', min_value=1, max_value=5, value=3)
+    # Save to BytesIO instead of disk
+    doc_stream = BytesIO()
+    doc.save(doc_stream)
+    doc_stream.seek(0)
+    
+    return doc_stream
 
-# Layout options (rows x columns)
-layout = st.selectbox('Select Layout', options=[(2, 2), (3, 2), (3, 3), (4, 4)], index=0)
-
-# Orientation options
-orientation = st.selectbox('Select Page Orientation', options=['Portrait', 'Landscape'], index=0)
-
-# Margin control
-margin_control = st.checkbox('Enable Custom Margins', value=False)
-
-# Generate button
-if st.button('Generate Document'):
-    if project_title and contractor_name and image_files:
-        # Save images temporarily
-        image_paths = []
-        for img in image_files:
-            with open(f"temp_{img.name}", 'wb') as f:
-                f.write(img.getvalue())
-            image_paths.append(f"temp_{img.name}")
-
-        # Create the Word document
-        try:
-            output_path = create_word_doc(project_title, contractor_name, image_paths, image_width, layout, orientation, margin_control)
-            st.success(f"Document generated successfully: {output_path}")
-            st.download_button('Download Word Document', data=open(output_path, 'rb'), file_name=output_path, mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-
-        finally:
-            # Clean up temporary image files
-            for path in image_paths:
-                os.remove(path)
-    else:
-        st.error('Please provide all inputs.')
+# Button to generate the document
+if st.button("Generate Word Document"):
+    doc_stream = create_document()
+    st.download_button(
+        label="Download Document",
+        data=doc_stream,
+        file_name="MED_PICTURES_Report.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
