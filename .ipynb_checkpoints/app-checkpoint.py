@@ -1,106 +1,94 @@
 import streamlit as st
-from docx import Document
-from docx.shared import Inches, Pt, RGBColor
 from PIL import Image
-import os
+from docx import Document
+from docx.shared import Inches, RGBColor
 from io import BytesIO
-from datetime import datetime
+import os
+import math
 
-def create_document(project_title, contractor_name, images, layout, orientation, image_width, margin_control):
+# Streamlit page configuration
+st.set_page_config(page_title="MED Pictures Generator", layout="wide")
+st.title("📸 MED PICTURES Word Document Generator")
+
+def add_header(doc, project_title, contractor_name):
+    paragraph = doc.add_paragraph()
+    run = paragraph.add_run("MED PICTURES: ")
+    run.font.color.rgb = RGBColor(255, 0, 0)  # Red text for 'MED PICTURES'
+    run.bold = True
+    run = paragraph.add_run(f"{project_title} by {contractor_name}")
+    run.font.color.rgb = RGBColor(0, 0, 0)  # Black text for rest
+    paragraph.alignment = 0  # Left align
+
+def create_document(project_title, contractor_name, images, layout, orientation):
     doc = Document()
 
-    # Set page orientation
+    # Set orientation
     section = doc.sections[0]
     if orientation == 'Landscape':
-        section.orientation = 1  # Landscape
+        section.orientation = 1
         section.page_width, section.page_height = section.page_height, section.page_width
 
     # Set margins
-    if margin_control:
-        section.left_margin = Inches(1)
-        section.right_margin = Inches(1)
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
+    section.left_margin = Inches(1)
+    section.right_margin = Inches(1)
+    section.top_margin = Inches(1)
+    section.bottom_margin = Inches(1)
 
-    # Title
-    p = doc.add_paragraph()
-    run_red = p.add_run("MED PICTURES: ")
-    run_red.font.color.rgb = RGBColor(255, 0, 0)
-    run_red.font.size = Pt(16)
-    run_red.bold = True
+    # Determine layout grid
+    layout_map = {
+        "2 x 2": (2, 2),
+        "3 x 2": (3, 2),
+        "3 x 3": (3, 3),
+        "4 x 2": (4, 2)
+    }
+    cols, rows = layout_map[layout]
+    images_per_page = cols * rows
 
-    run_black = p.add_run(f"{project_title} by {contractor_name}")
-    run_black.font.color.rgb = RGBColor(0, 0, 0)
-    run_black.font.size = Pt(16)
-    run_black.bold = True
+    for i in range(0, len(images), images_per_page):
+        if i != 0:
+            doc.add_page_break()
 
-    # Date/time
-    doc.add_paragraph(datetime.now().strftime("%d %B %Y, %I:%M %p"))
+        add_header(doc, project_title, contractor_name)
+        table = doc.add_table(rows=rows, cols=cols)
+        table.autofit = True
 
-    # Layout configuration
-    columns, rows = map(int, layout.split('x'))
-    images_per_page = columns * rows
+        chunk = images[i:i+images_per_page]
 
-    # Add images with fixed height alignment
-    from docx.shared import Cm
-    from PIL import ImageOps
+        for idx, image_file in enumerate(chunk):
+            row = idx // cols
+            col = idx % cols
+            cell = table.cell(row, col)
 
-    for idx, img_file in enumerate(images):
-        if idx % images_per_page == 0:
-            if idx != 0:
-                doc.add_page_break()
-            # Repeat header
-            p = doc.add_paragraph()
-            run_red = p.add_run("MED PICTURES: ")
-            run_red.font.color.rgb = RGBColor(255, 0, 0)
-            run_red.font.size = Pt(16)
-            run_red.bold = True
+            image = Image.open(image_file)
+            aspect_ratio = image.width / image.height
+            target_height = 3  # Inches
+            target_width = target_height * aspect_ratio
 
-            run_black = p.add_run(f"{project_title} by {contractor_name}")
-            run_black.font.color.rgb = RGBColor(0, 0, 0)
-            run_black.font.size = Pt(16)
-            run_black.bold = True
+            img_stream = BytesIO()
+            image.save(img_stream, format='PNG')
+            img_stream.seek(0)
 
-        image = Image.open(img_file)
-        aspect_ratio = image.width / image.height
+            cell.paragraphs[0].add_run().add_picture(img_stream, height=Inches(target_height))
 
-        # Calculate consistent height based on width
-        target_width_px = int(image_width * 96)  # 96 dpi
-        target_height_px = int(target_width_px / aspect_ratio)
+    file_stream = BytesIO()
+    doc.save(file_stream)
+    file_stream.seek(0)
+    return file_stream
 
-        image = image.resize((target_width_px, target_height_px))
+# User Inputs
+with st.form("med_pictures_form"):
+    project_title = st.text_input("Project Title")
+    contractor_name = st.text_input("Contractor Name")
+    uploaded_images = st.file_uploader("Upload Images", accept_multiple_files=True, type=["png", "jpg", "jpeg"])
+    layout_option = st.selectbox("Select Layout", ["2 x 2", "3 x 2", "3 x 3", "4 x 2"])
+    orientation = st.selectbox("Page Orientation", ["Portrait", "Landscape"])
+    submitted = st.form_submit_button("Generate Word Document")
 
-        buffer = BytesIO()
-        image.save(buffer, format='PNG')
-        buffer.seek(0)
-        doc.add_picture(buffer, width=Inches(image_width))
-
-    # Save to BytesIO
-    output = BytesIO()
-    doc.save(output)
-    output.seek(0)
-    return output
-
-# Streamlit UI
-st.set_page_config(page_title="MED Pictures Generator", layout="wide")
-st.title("\U0001F4F8 MED PICTURES Word Document Generator")
-
-project_title = st.text_input("Project Title")
-contractor_name = st.text_input("Contractor Name")
-
-images = st.file_uploader("Upload Pictures", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-layout = st.selectbox("Select Layout", ["2x2", "3x2", "3x3"], index=1)
-orientation = st.radio("Select Page Orientation", ["Portrait", "Landscape"], index=0)
-image_width = st.slider("Image Width (in inches)", 1.0, 6.0, 3.0)
-margin_control = st.checkbox("Use 1-inch Margins", value=True)
-
-generate = st.button("Generate Document")
-
-if generate and images:
-    doc_stream = create_document(project_title, contractor_name, images, layout, orientation, image_width, margin_control)
-    st.download_button(
-        label="Download Word Document",
-        data=doc_stream,
-        file_name=f"MED_PICTURES_{project_title.replace(' ', '_')}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+if submitted:
+    if not project_title or not contractor_name or not uploaded_images:
+        st.error("Please fill all fields and upload at least one image.")
+    else:
+        doc_stream = create_document(project_title, contractor_name, uploaded_images, layout_option, orientation)
+        filename = f"MED_PICTURES_{project_title}_by_{contractor_name}.docx".replace(" ", "_")
+        st.success("Document generated successfully!")
+        st.download_button("Download Document", data=doc_stream, file_name=filename, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
