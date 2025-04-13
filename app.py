@@ -1,113 +1,111 @@
 import streamlit as st
-from docx import Document
-from docx.shared import Inches, RGBColor, Pt
 from PIL import Image
-import io
-import math
+from docx import Document
+from docx.shared import Inches, RGBColor
+from io import BytesIO
 import datetime
+import math
 
-st.set_page_config(page_title="MED Pictures Generator", layout="wide")
+st.set_page_config(page_title="MED PICTURES Generator", layout="wide")
 st.title("📸 MED PICTURES Word Document Generator")
 
-# Layout options
-layout_options = {
-    "1 x 2": (1, 2),
-    "1 x 3": (1, 3),
-    "2 x 2": (2, 2),
-    "2 x 3": (2, 3),
-    "3 x 2": (3, 2),
-    "3 x 3": (3, 3),
-}
-
-# Sidebar Inputs
-orientation = st.sidebar.selectbox("Select Page Orientation", ["Portrait", "Landscape"])
-layout_choice = st.sidebar.selectbox("Select Picture Layout", list(layout_options.keys()))
-num_columns, num_rows = layout_options[layout_choice]
-pics_per_page = num_columns * num_rows
-
-uploaded_files = st.file_uploader("Upload Pictures", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-project_title = st.text_input("Enter Project Title")
-contractor_name = st.text_input("Enter Contractor Name")
-
-preview_placeholder = st.empty()
-
-def generate_preview(files):
-    if not files:
-        return
-    cols = st.columns(num_columns)
-    for index, file in enumerate(files):
-        col = cols[index % num_columns]
-        with col:
-            st.image(file, caption=f"Image {index+1}", use_container_width=True)
-
-# Generate Word Document
-def create_document():
+def generate_doc(images, title, contractor, layout, orientation, margin):
     doc = Document()
 
-    # Page setup
+    # Orientation
     section = doc.sections[0]
-    if orientation == 'Landscape':
+    if orientation == "Landscape":
         section.orientation = 1
         section.page_width, section.page_height = section.page_height, section.page_width
 
-    section.left_margin = Inches(0.5)
-    section.right_margin = Inches(0.5)
-    section.top_margin = Inches(0.5)
-    section.bottom_margin = Inches(0.5)
+    # Margins
+    if margin:
+        section.left_margin = Inches(0.5)
+        section.right_margin = Inches(0.5)
+        section.top_margin = Inches(0.5)
+        section.bottom_margin = Inches(0.5)
 
-    images = [Image.open(file) for file in uploaded_files]
-
-    # Calculate uniform height
-    target_height = 300  # pixels
-    resized_images = [img.resize((int(target_height * img.width / img.height), target_height)) for img in images]
-
-    for i in range(0, len(resized_images), pics_per_page):
-        if i != 0:
-            doc.add_page_break()
-        
-        # Header
+    # Title formatting
+    def add_header():
         p = doc.add_paragraph()
         run_red = p.add_run("MED PICTURES: ")
         run_red.font.color.rgb = RGBColor(255, 0, 0)
-        run_red.font.size = Pt(14)
-        run_black = p.add_run(f"{project_title} by {contractor_name}")
-        run_black.font.color.rgb = RGBColor(0, 0, 0)
-        run_black.font.size = Pt(14)
+        run_black = p.add_run(f"{title} by {contractor}")
+        run_black.bold = True
 
-        table = doc.add_table(rows=num_rows, cols=num_columns)
-        table.autofit = True
+    rows, cols = map(int, layout.split("x"))
+    per_page = rows * cols
 
-        subset = resized_images[i:i+pics_per_page]
-        for idx, img in enumerate(subset):
-            row = idx // num_columns
-            col = idx % num_columns
-            cell = table.cell(row, col)
+    for i in range(0, len(images), per_page):
+        if i > 0:
+            doc.add_page_break()
+        add_header()
 
-            img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format='PNG')
-            img_byte_arr.seek(0)
-            paragraph = cell.paragraphs[0]
-            run = paragraph.add_run()
-            run.add_picture(img_byte_arr, width=Inches(2.5))
+        table = doc.add_table(rows=rows, cols=cols)
+        table.autofit = False
+        idx = i
 
-    doc_stream = io.BytesIO()
-    doc.save(doc_stream)
-    doc_stream.seek(0)
-    return doc_stream
+        for r in range(rows):
+            row = table.rows[r]
+            for c in range(cols):
+                cell = row.cells[c]
+                if idx < len(images):
+                    image = Image.open(images[idx])
+                    image.thumbnail((300, 300))
+                    img_stream = BytesIO()
+                    image.save(img_stream, format='PNG')
+                    img_stream.seek(0)
+                    cell.paragraphs[0].add_run().add_picture(img_stream, width=Inches(2.2))
+                    idx += 1
 
-# Show preview
-generate_preview(uploaded_files)
+    stream = BytesIO()
+    doc.save(stream)
+    stream.seek(0)
+    return stream
 
-if st.button("Generate Word Document"):
-    if uploaded_files and project_title and contractor_name:
-        doc_stream = create_document()
-        st.success("Document generated successfully!")
-        st.download_button(
-            label="Download Document",
-            data=doc_stream,
-            file_name=f"MED_PICTURES_{project_title}_by_{contractor_name}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-    else:
-        st.warning("Please provide all required inputs.")
+# Layout Options
+layouts = ["1x2", "1x3", "2x2", "2x3", "3x2", "3x3"]
+
+if "generate_count" not in st.session_state:
+    st.session_state.generate_count = 1
+
+for gen_id in range(1, st.session_state.generate_count + 1):
+    with st.form(f"form_{gen_id}"):
+        st.markdown(f"### Document Generator #{gen_id}")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            title = st.text_input("Project Title", key=f"title_{gen_id}")
+            contractor = st.text_input("Contractor Name", key=f"contractor_{gen_id}")
+            orientation = st.radio("Page Orientation", ["Portrait", "Landscape"], key=f"orientation_{gen_id}")
+            layout = st.selectbox("Layout (rows x columns per page)", layouts, key=f"layout_{gen_id}")
+            margin = st.checkbox("Apply 0.5-inch margin", value=True, key=f"margin_{gen_id}")
+
+        with col2:
+            uploaded_files = st.file_uploader("Upload Pictures", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"files_{gen_id}")
+
+            # Show layout preview
+            if uploaded_files:
+                rows, cols = map(int, layout.split("x"))
+                st.markdown("**Preview of Selected Images**")
+                for r in range(rows):
+                    cols_images = uploaded_files[r*cols:(r+1)*cols]
+                    cols_stream = st.columns(cols)
+                    for i, img in enumerate(cols_images):
+                        cols_stream[i].image(img, use_container_width=True)
+
+        submitted = st.form_submit_button("Generate Document")
+
+        if submitted and uploaded_files:
+            docx_file = generate_doc(uploaded_files, title, contractor, layout, orientation, margin)
+            st.success("Document generated successfully!")
+            st.download_button(
+                label="📥 Download Word Document",
+                data=docx_file,
+                file_name=f"MED_PICTURES_{title.replace(' ', '_')}.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+            st.markdown("---")
+            if st.button("Generate Another Document", key=f"another_{gen_id}"):
+                st.session_state.generate_count += 1
+                st.experimental_rerun()
