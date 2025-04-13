@@ -113,3 +113,4 @@ for section_id in st.session_state.sections:
                     file_name=f"MED_PICTURES_{title.replace(' ', '_')}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
+s
