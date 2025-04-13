@@ -3,7 +3,6 @@ from docx import Document
 from docx.shared import Inches, RGBColor
 from PIL import Image
 import io
-import datetime
 
 st.set_page_config(page_title="MED Pictures Generator", layout="wide")
 st.title("📸 MED PICTURES Word Document Generator")
