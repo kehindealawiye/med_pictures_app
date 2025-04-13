@@ -50,7 +50,7 @@ def generate_doc(title, contractor, images, layout, orientation):
             r, c = divmod(idx, cols)
             cell = table.rows[r].cells[c]
             img = Image.open(image_file)
-            img.thumbnail((300, 300))
+            img.thumbnail((300, 300))  # Ensure image fits in the cell
             image_stream = io.BytesIO()
             img.save(image_stream, format='PNG')
             image_stream.seek(0)
@@ -93,13 +93,14 @@ for section_id in st.session_state.sections:
         if images:
             st.markdown("### Selected Image Layout Preview")
             rows, cols = layout_options[layout]
-            for i in range(0, len(images), cols):
+            image_count = len(images)
+            for i in range(0, image_count, cols):
                 cols_preview = st.columns(cols)
                 for j in range(cols):
-                    if i + j < len(images):
+                    if i + j < image_count:
                         img = Image.open(images[i + j])
-                        cols_preview[j].image(img, use_container_width=True)
-
+                        cols_preview[j].image(img, use_container_width=True, caption=f"Image {i+j+1}")
+        
         # Generate and download document after form submission
         if submitted:
             if not title or not contractor or not images:
