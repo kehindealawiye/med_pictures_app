@@ -7,7 +7,7 @@ from PIL import Image
 import io
 
 # --- Set page config ---
-st.set_page_config(page_title="📸 MED Pictures Generator", layout="wide")
+st.set_page_config(page_title="\U0001F4F8 MED Pictures Generator", layout="wide")
 st.title(u"\U0001F4F8 MED PICTURES Word Document Generator")  # 📸
 
 # --- Crop size mapping (in inches) ---
@@ -18,14 +18,9 @@ crop_options = {
     "Wide Landscape (8.56 x 18.94 cm)": (2.83, 7.46),
 }
 
-# --- Helper: pad image to size with white background ---
-def pad_image_to_size(img, target_size, color=(255, 255, 255)):
-    img.thumbnail(target_size, Image.Resampling.LANCZOS)
-    new_img = Image.new("RGB", target_size, color)
-    left = (target_size[0] - img.width) // 2
-    top = (target_size[1] - img.height) // 2
-    new_img.paste(img, (left, top))
-    return new_img
+# --- Helper: resize image to exact size ---
+def resize_image_to_size(img, target_size):
+    return img.resize(target_size, Image.Resampling.LANCZOS)
 
 # --- User input form ---
 with st.form("image_form"):
@@ -65,7 +60,7 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
     grouped = {}
     for img, crop in zip(images, crop_sizes):
         grouped.setdefault(crop, []).append(img)
-    
+
     ordered_images = []
     ordered_crop_sizes = []
     for crop, imgs in grouped.items():
@@ -79,10 +74,10 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
         section.orientation = 1
         section.page_width, section.page_height = section.page_height, section.page_width
 
-    section.top_margin = Inches(0.3)
-    section.bottom_margin = Inches(0.3)
-    section.left_margin = Inches(0.4)
-    section.right_margin = Inches(0.4)
+    section.top_margin = Inches(0.1)
+    section.bottom_margin = Inches(0.1)
+    section.left_margin = Inches(0.1)
+    section.right_margin = Inches(0.1)
 
     usable_width = section.page_width - section.left_margin - section.right_margin
     col_width = usable_width / cols
@@ -99,6 +94,7 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
         # Layout table
         table = doc.add_table(rows=rows, cols=cols)
         table.autofit = False
+        table.allow_autofit = False
 
         for row in table.rows:
             for cell in row.cells:
@@ -106,6 +102,10 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 for paragraph in cell.paragraphs:
                     paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                cell.margin_top = 0
+                cell.margin_bottom = 0
+                cell.margin_left = 0
+                cell.margin_right = 0
 
         for idx, image_file in enumerate(ordered_images[i:i + images_per_page]):
             r, c = divmod(idx, cols)
@@ -116,7 +116,7 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
             width_in, height_in = crop_options[crop_label]
 
             target_px = (int(width_in * 96), int(height_in * 96))
-            img = pad_image_to_size(img, target_px)
+            img = resize_image_to_size(img, target_px)
 
             img_stream = io.BytesIO()
             img.save(img_stream, format='PNG')
@@ -141,4 +141,4 @@ if submitted:
     else:
         word_doc = generate_doc(title, contractor, uploaded_images, crop_selections, layout, orientation)
         st.success("✅ Document ready!")
-        st.download_button("📥 Download Word Document", word_doc, "MED_PICTURES.docx")
+        st.download_button("📅 Download Word Document", word_doc, "MED_PICTURES.docx")
