@@ -8,7 +8,7 @@ import io
 
 # --- Set page config ---
 st.set_page_config(page_title="📸 MED Pictures Generator", layout="wide")
-st.title("📸 MED PICTURES Word Document Generator")
+st.title(u"\U0001F4F8 MED PICTURES Word Document Generator")  # 📸
 
 # --- Crop size mapping (in inches) ---
 crop_options = {
