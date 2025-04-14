@@ -7,8 +7,10 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from PIL import Image
 import io
 
-# === STREAMLIT PAGE CONFIGURATION ===
+# ✅ Set page config before any Streamlit output
 st.set_page_config(page_title="MED Pictures Generator", layout="wide")
+
+# Streamlit UI
 st.title("📸 MED PICTURES Word Document Generator")
 
 # === LAYOUT OPTIONS MAPPING ===
