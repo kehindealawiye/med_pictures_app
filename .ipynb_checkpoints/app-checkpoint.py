@@ -18,6 +18,15 @@ crop_options = {
     "Wide Landscape (8.56 x 18.94 cm)": (2.83, 7.46),
 }
 
+# --- Helper: pad image to size with white background ---
+def pad_image_to_size(img, target_size, color=(255, 255, 255)):
+    img.thumbnail(target_size, Image.Resampling.LANCZOS)
+    new_img = Image.new("RGB", target_size, color)
+    left = (target_size[0] - img.width) // 2
+    top = (target_size[1] - img.height) // 2
+    new_img.paste(img, (left, top))
+    return new_img
+
 # --- User input form ---
 with st.form("image_form"):
     st.subheader("🛠️ Document Configuration")
@@ -33,7 +42,7 @@ with st.form("image_form"):
         for idx, image_file in enumerate(uploaded_images):
             col1, col2 = st.columns([1, 2])
             with col1:
-                st.image(image_file, caption=f"Image {idx+1}", use_column_width=True)
+                st.image(image_file, caption=f"Image {idx+1}", use_container_width=True)
             with col2:
                 crop = st.selectbox(
                     f"Crop size for Image {idx+1}",
@@ -47,21 +56,21 @@ with st.form("image_form"):
     submitted = st.form_submit_button("📄 Generate Word Document")
 
 # --- Document generator ---
-def crop_center(img, target_size):
-    img_width, img_height = img.size
-    target_width, target_height = target_size
-
-    left = (img_width - target_width) / 2
-    top = (img_height - target_height) / 2
-    right = (img_width + target_width) / 2
-    bottom = (img_height + target_height) / 2
-
-    return img.crop((left, top, right, bottom))
-
 def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
     layout_map = { "1 x 2": (1, 2), "1 x 3": (1, 3), "2 x 2": (2, 2), "2 x 3": (2, 3), "3 x 2": (3, 2), "3 x 3": (3, 3) }
     rows, cols = layout_map[layout]
     images_per_page = rows * cols
+
+    # Group by crop type
+    grouped = {}
+    for img, crop in zip(images, crop_sizes):
+        grouped.setdefault(crop, []).append(img)
+    
+    ordered_images = []
+    ordered_crop_sizes = []
+    for crop, imgs in grouped.items():
+        ordered_images.extend(imgs)
+        ordered_crop_sizes.extend([crop] * len(imgs))
 
     doc = Document()
     section = doc.sections[0]
@@ -78,8 +87,8 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
     usable_width = section.page_width - section.left_margin - section.right_margin
     col_width = usable_width / cols
 
-    for i in range(0, len(images), images_per_page):
-        # Page header
+    for i in range(0, len(ordered_images), images_per_page):
+        # Header
         p = doc.add_paragraph()
         run1 = p.add_run("MED PICTURES: ")
         run1.font.color.rgb = RGBColor(255, 0, 0)
@@ -98,18 +107,16 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
                 for paragraph in cell.paragraphs:
                     paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-        for idx, image_file in enumerate(images[i:i + images_per_page]):
+        for idx, image_file in enumerate(ordered_images[i:i + images_per_page]):
             r, c = divmod(idx, cols)
             cell = table.rows[r].cells[c]
 
             img = Image.open(image_file).convert("RGB")
-            crop_label = crop_sizes[i + idx]
+            crop_label = ordered_crop_sizes[i + idx]
             width_in, height_in = crop_options[crop_label]
 
-            # Convert inches to pixels (assuming 96 dpi)
             target_px = (int(width_in * 96), int(height_in * 96))
-            img = crop_center(img, target_px)
-            img = img.resize(target_px)
+            img = pad_image_to_size(img, target_px)
 
             img_stream = io.BytesIO()
             img.save(img_stream, format='PNG')
@@ -119,7 +126,7 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
             run = paragraph.add_run()
             run.add_picture(img_stream, width=Inches(width_in))
 
-        if i + images_per_page < len(images):
+        if i + images_per_page < len(ordered_images):
             doc.add_page_break()
 
     buffer = io.BytesIO()
