@@ -43,6 +43,10 @@ def generate_doc(title, contractor, images, layout, orientation):
     section.top_margin = Inches(0.5)
     section.bottom_margin = Inches(0.5)
 
+    # Calculate usable width of the page (total width - left and right margins)
+    usable_width = section.page_width - section.left_margin - section.right_margin
+    col_width = usable_width / cols  # Set column width
+
     # Process images and paginate
     for i in range(0, len(images), images_per_page):
         # Add project header once per page
@@ -57,9 +61,10 @@ def generate_doc(title, contractor, images, layout, orientation):
         table = doc.add_table(rows=rows, cols=cols)
         table.autofit = False
 
-        # Center-align all cells
+        # Apply column widths and center-align all cells
         for row in table.rows:
             for cell in row.cells:
+                cell.width = col_width
                 cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 for paragraph in cell.paragraphs:
                     paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
