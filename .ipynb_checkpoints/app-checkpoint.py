@@ -10,7 +10,7 @@ import io
 # ✅ Set page config before any Streamlit output
 st.set_page_config(page_title="MED Pictures Generator", layout="wide")
 
-# Streamlit UI
+# === TITLE ===
 st.title("📸 MED PICTURES Word Document Generator")
 
 # === LAYOUT OPTIONS MAPPING ===
@@ -77,9 +77,9 @@ def generate_doc(title, contractor, images, layout, orientation):
 
             paragraph = cell.paragraphs[0]
             run = paragraph.add_run()
-            run.add_picture(image_stream, width=Inches(2.2))  # Width adjusted for central fit
+            run.add_picture(image_stream, width=Inches(2.2))  # Adjust width
 
-        # Page break for next batch
+        # Page break if more images
         if i + images_per_page < len(images):
             doc.add_page_break()
 
@@ -88,3 +88,29 @@ def generate_doc(title, contractor, images, layout, orientation):
     doc.save(buffer)
     buffer.seek(0)
     return buffer
+
+# === USER INPUT FORM ===
+with st.form("image_form"):
+    st.subheader("🔧 Document Configuration")
+
+    title = st.text_input("Project Title")
+    contractor = st.text_input("Contractor Name")
+    orientation = st.selectbox("Page Orientation", ["Portrait", "Landscape"])
+    layout = st.selectbox("Image Layout", list(layout_options.keys()))
+    uploaded_images = st.file_uploader("Upload Images", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+
+    submitted = st.form_submit_button("Generate Word Document")
+
+# === DOCUMENT GENERATION AND DOWNLOAD ===
+if submitted:
+    if not title or not contractor or not uploaded_images:
+        st.error("Please provide all required inputs.")
+    else:
+        word_file = generate_doc(title, contractor, uploaded_images, layout, orientation)
+        st.success("✅ Document ready!")
+        st.download_button(
+            label="📥 Download Document",
+            data=word_file,
+            file_name="MED_Pictures.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
