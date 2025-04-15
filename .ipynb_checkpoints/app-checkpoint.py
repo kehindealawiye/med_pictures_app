@@ -15,19 +15,19 @@ st.title(u"\U0001F4F8 MED PICTURES Word Document Generator")  # 📸
 # --- Crop size mapping (in inches based on layout + 2cm margin logic) ---
 crop_options = {
     # PORTRAIT A4 (6.69 x 10.1 inches)
-    "Portrait: 2 x 1": (4.95, 6.69),
-    "Portrait: 2 x 2": (4.95, 3.25),
-    "Portrait: 2 x 3": (4.95, 2.13),
-    "Portrait: 3 x 1": (3.27, 6.69),
-    "Portrait: 3 x 2": (3.27, 3.25),
-    "Portrait: 3 x 3": (3.27, 2.13),
+    "Portrait: 2 x 1": (3.95, 5.69),
+    "Portrait: 2 x 2": (3.95, 2.25),
+    "Portrait: 2 x 3": (3.95, 1.13),
+    "Portrait: 3 x 1": (2.27, 5.69),
+    "Portrait: 3 x 2": (2.27, 2.25),
+    "Portrait: 3 x 3": (2.27, 1.13),
     # LANDSCAPE A4 (10.1 x 6.69 inches)
-    "Landscape: 2 x 1": (3.25, 10.1),
-    "Landscape: 2 x 2": (3.25, 4.95),
-    "Landscape: 2 x 3": (3.25, 3.27),
-    "Landscape: 3 x 1": (2.13, 10.1),
-    "Landscape: 3 x 2": (2.13, 4.95),
-    "Landscape: 3 x 3": (2.13, 3.27),
+    "Landscape: 2 x 1": (2.25, 9.1),
+    "Landscape: 2 x 2": (2.25, 3.95),
+    "Landscape: 2 x 3": (2.25, 2.27),
+    "Landscape: 3 x 1": (1.13, 9.1),
+    "Landscape: 3 x 2": (1.13, 9.95),
+    "Landscape: 3 x 3": (1.13, 2.27),
 }
 
 # --- User input form ---
@@ -75,7 +75,7 @@ def generate_doc(title, contractor, images, crop_sizes, layout, orientation):
         section.page_width, section.page_height = section.page_height, section.page_width
 
     section.top_margin = Inches(0.69)
-    section.bottom_margin = Inches(0.69)
+    section.bottom_margin = Inches(0.39)
     section.left_margin = Inches(0.79)
     section.right_margin = Inches(0.79)
 
